@@ -33,6 +33,7 @@ import {
   Info,
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import { getTemplateById } from "@/storage/templates";
 
 export default function WorkoutDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -48,8 +49,8 @@ export default function WorkoutDetailScreen() {
     Inter_700Bold,
   });
 
-  // Mock workout data - in real app this would come from params/API
-  const workout = {
+  // Default workout data - used as fallback
+  const defaultWorkout = {
     id: 1,
     title: "Upper Body Strength",
     description:
@@ -138,6 +139,43 @@ export default function WorkoutDetailScreen() {
     ],
   };
 
+  const [workout, setWorkout] = useState(defaultWorkout);
+
+  // Load from local templates if id param provided
+  React.useEffect(() => {
+    const id = params?.id;
+    if (!id) return;
+    (async () => {
+      const tpl = await getTemplateById(id);
+      if (tpl) {
+        setWorkout({
+          id: tpl.id,
+          title: tpl.title,
+          description: tpl.description || defaultWorkout.description,
+          duration: tpl.duration || 0,
+          calories: tpl.calories || 0,
+          difficulty: tpl.difficulty || "",
+          category: tpl.category || "",
+          equipment: tpl.equipment || [],
+          muscles: tpl.muscles || [],
+          lastCompleted: tpl.lastCompleted || "Never",
+          completions: tpl.completions || 0,
+          exercises: Array.isArray(tpl.exercises)
+            ? tpl.exercises.map((e, i) => ({
+                id: e.id || i + 1,
+                name: e.name || `Exercise ${i + 1}`,
+                sets: e.sets || 3,
+                reps: e.reps || "8-12",
+                restTime: e.restSec ?? e.restTime ?? 60,
+                muscleGroups: Array.isArray(e.muscleGroups) ? e.muscleGroups : [],
+                instructions: e.instructions || "",
+              }))
+            : [],
+        });
+      }
+    })();
+  }, [params?.id]);
+
   if (!fontsLoaded) {
     return null;
   }
@@ -157,8 +195,8 @@ export default function WorkoutDetailScreen() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Navigate to workout session
-      router.push("/workout-session");
+      // Navigate to workout session with id
+      router.push(`/workout-session?id=${encodeURIComponent(workout.id)}`);
     });
   };
 
@@ -170,7 +208,7 @@ export default function WorkoutDetailScreen() {
   };
 
   const handleEdit = () => {
-    router.push("/workout-builder");
+    router.push(`/workout-builder?id=${encodeURIComponent(workout.id)}`);
   };
 
   const handleCopy = () => {
@@ -322,7 +360,7 @@ export default function WorkoutDetailScreen() {
             </Text>
 
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              {exercise.muscleGroups.map((muscle, idx) => (
+              {Array.isArray(exercise.muscleGroups) && exercise.muscleGroups.map((muscle, idx) => (
                 <View
                   key={idx}
                   style={{
@@ -676,7 +714,7 @@ export default function WorkoutDetailScreen() {
                 Equipment Needed
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {workout.equipment.map((item, index) => (
+                {Array.isArray(workout.equipment) && workout.equipment.map((item, index) => (
                   <View
                     key={index}
                     style={{
@@ -712,7 +750,7 @@ export default function WorkoutDetailScreen() {
                 Target Muscles
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {workout.muscles.map((muscle, index) => (
+                {Array.isArray(workout.muscles) && workout.muscles.map((muscle, index) => (
                   <View
                     key={index}
                     style={{

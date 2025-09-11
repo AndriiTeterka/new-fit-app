@@ -30,6 +30,7 @@ import {
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -43,9 +44,9 @@ export default function HomeScreen() {
   });
 
   const [progress, setProgress] = useState({
-    streak: 12,
-    caloriesBurned: 1276,
-    weeklyGoalPercentage: 78,
+    streak: 0,
+    caloriesBurned: 0,
+    weeklyGoalPercentage: 0,
   });
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -75,6 +76,54 @@ export default function HomeScreen() {
     };
     pulse();
   }, [pulseAnim]);
+
+  // Derive today's progress and streak from local workout logs
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem("@workout_logs");
+        const logs = raw ? JSON.parse(raw) : [];
+        const todayKey = new Date().toISOString().slice(0, 10);
+        const byDate = new Map();
+        for (const l of logs) {
+          const key = (l.completedAt || "").slice(0, 10);
+          if (!key) continue;
+          byDate.set(key, (byDate.get(key) || 0) + 1);
+        }
+        // Streak: consecutive days ending today with at least one workout
+        let streak = 0;
+        const d = new Date();
+        for (;;) {
+          const key = d.toISOString().slice(0, 10);
+          if (byDate.has(key)) {
+            streak += 1;
+            d.setDate(d.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+        // Today's calories
+        let calories = 0;
+        for (const l of logs) {
+          if ((l.completedAt || "").slice(0, 10) === todayKey) {
+            calories += l.calories || 0;
+          }
+        }
+        // Weekly goal percentage based on minutes vs 300 min goal
+        const weekStart = (() => { const w = new Date(); const day = w.getDay(); w.setHours(0,0,0,0); w.setDate(w.getDate()-day); return w; })();
+        let minutes = 0;
+        for (const l of logs) {
+          const t = new Date(l.completedAt);
+          if (isNaN(t.getTime())) continue;
+          if (t >= weekStart) {
+            minutes += Math.round((l.durationSeconds || 0) / 60);
+          }
+        }
+        const weeklyGoalPercentage = Math.min(100, Math.round((minutes / 300) * 100));
+        setProgress({ streak, caloriesBurned: calories, weeklyGoalPercentage });
+      } catch {}
+    })();
+  }, []);
 
   if (!fontsLoaded) {
     return null;

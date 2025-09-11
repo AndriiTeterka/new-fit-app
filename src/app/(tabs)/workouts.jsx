@@ -30,13 +30,17 @@ import {
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import { getTemplates } from "@/storage/templates";
 
 export default function WorkoutsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const [activeTab, setActiveTab] = useState("my-workouts");
   const [searchQuery, setSearchQuery] = useState("");
+  const [shortOnly, setShortOnly] = useState(false); // client-side filter: <= 30 min
 
+  const [templates, setTemplates] = useState([]);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -133,6 +137,18 @@ export default function WorkoutsScreen() {
     ],
   };
 
+  useFocusEffect(
+    React.useCallback(() => {
+      let mounted = true;
+      (async () => {
+        const data = await getTemplates();
+        if (mounted) setTemplates(data);
+      })();
+      return () => {
+        mounted = false;
+      };
+    }, [])
+  );
   if (!fontsLoaded) {
     return null;
   }
@@ -160,7 +176,7 @@ const WorkoutCard = ({ workout }) => (
         borderWidth: 1,
         borderColor: workout.isPremium ? colors.yellow : colors.border,
       }}
-      onPress={() => router.push("/workout-detail")}
+      onPress={() => router.push(`/workout-detail?id=${encodeURIComponent(workout.id)}`)}
     >
       {/* Premium Badge */}
       {workout.isPremium && (
@@ -264,7 +280,7 @@ const WorkoutCard = ({ workout }) => (
               marginLeft: 4,
             }}
           >
-            {workout.exercises} exercises
+            {Array.isArray(workout.exercises) ? workout.exercises.length : workout.exercises} exercises
           </Text>
         </View>
 
@@ -343,7 +359,14 @@ const WorkoutCard = ({ workout }) => (
   );
 
   const renderTabContent = () => {
-    const workouts = workoutData[activeTab] || [];
+    const base = templates.length ? templates : (workoutData[activeTab] || []);
+    const workouts = base
+      .filter((w) =>
+        searchQuery.trim().length === 0
+          ? true
+          : w.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      )
+      .filter((w) => (shortOnly ? w.duration <= 30 : true));
     return (
       <FlatList
         data={workouts}
@@ -440,15 +463,16 @@ const WorkoutCard = ({ workout }) => (
 
           <TouchableOpacity
             style={{
-              backgroundColor: colors.surface,
+              backgroundColor: shortOnly ? colors.yellow + "20" : colors.surface,
               width: 48,
               height: 48,
               borderRadius: 16,
               justifyContent: "center",
               alignItems: "center",
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: shortOnly ? colors.yellow : colors.border,
             }}
+            onPress={() => setShortOnly((v) => !v)}
           >
             <Filter size={20} color={colors.primary} />
           </TouchableOpacity>

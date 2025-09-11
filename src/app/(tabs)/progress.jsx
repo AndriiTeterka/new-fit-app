@@ -6,7 +6,11 @@ import {
   TouchableOpacity,
   FlatList,
   Dimensions,
+  Alert,
 } from "react-native";
+import { Share as RNShare } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -35,6 +39,7 @@ export default function ProgressScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const [selectedTimeframe, setSelectedTimeframe] = useState("week");
+  const [logs, setLogs] = useState([]);
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -43,7 +48,7 @@ export default function ProgressScreen() {
     Inter_700Bold,
   });
 
-  // Mock progress data
+  // Mock progress data (fallback if no logs yet)
   const progressStats = {
     week: {
       workouts: 5,
@@ -141,11 +146,83 @@ export default function ProgressScreen() {
     },
   ];
 
+  // Load logs before any early return to keep consistent hooks order
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem("@workout_logs");
+        setLogs(raw ? JSON.parse(raw) : []);
+      } catch {}
+    })();
+  }, []);
+
   if (!fontsLoaded) {
     return null;
   }
 
-  const currentStats = progressStats[selectedTimeframe];
+  const startOf = (timeframe) => {
+    const now = new Date();
+    const d = new Date(now);
+    if (timeframe === "week") {
+      const day = d.getDay();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - day);
+    } else if (timeframe === "month") {
+      d.setHours(0, 0, 0, 0);
+      d.setDate(1);
+    } else if (timeframe === "year") {
+      d.setHours(0, 0, 0, 0);
+      d.setMonth(0, 1);
+    }
+    return d;
+  };
+
+  const calculateFromLogs = (timeframe) => {
+    if (!Array.isArray(logs) || logs.length === 0) return null;
+    const since = startOf(timeframe);
+    let workouts = 0;
+    let totalDuration = 0;
+    let caloriesBurned = 0;
+    for (const l of logs) {
+      const t = new Date(l.completedAt);
+      if (isNaN(t.getTime())) continue;
+      if (t >= since) {
+        workouts += 1;
+        totalDuration += Math.round((l.durationSeconds || 0) / 60);
+        caloriesBurned += l.calories || 0;
+      }
+    }
+    return { workouts, totalDuration, caloriesBurned, personalRecords: 0 };
+  };
+
+  const derived = calculateFromLogs(selectedTimeframe);
+  const currentStats = derived || progressStats[selectedTimeframe];
+
+  const shareSummaryText = () => {
+    return `My ${selectedTimeframe} progress:\n\n` +
+      `Workouts: ${currentStats.workouts}\n` +
+      `Duration: ${currentStats.totalDuration} min\n` +
+      `Calories: ${currentStats.caloriesBurned}\n` +
+      `PRs: ${currentStats.personalRecords}`;
+  };
+
+  const onShare = async () => {
+    try {
+      await RNShare.share({ message: shareSummaryText() });
+    } catch (e) {
+      Alert.alert("Share Failed", "Unable to open share dialog.");
+    }
+  };
+
+  const onDownload = async () => {
+    const csv = `timeframe,workouts,totalDuration,caloriesBurned,personalRecords\n${selectedTimeframe},${currentStats.workouts},${currentStats.totalDuration},${currentStats.caloriesBurned},${currentStats.personalRecords}`;
+    try {
+      await Clipboard.setStringAsync(csv);
+      Alert.alert("Export Ready", "CSV summary copied to clipboard.");
+    } catch (e) {
+      Alert.alert("Export Failed", "Could not copy data to clipboard.");
+    }
+  };
 
   const StatCard = ({ icon, title, value, unit, color }) => (
     <View
@@ -523,6 +600,7 @@ export default function ProgressScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                 }}
+                onPress={onShare}
               >
                 <Share size={20} color={colors.primary} />
               </TouchableOpacity>
@@ -536,6 +614,7 @@ export default function ProgressScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                 }}
+                onPress={onDownload}
               >
                 <Download size={20} color={colors.primary} />
               </TouchableOpacity>

@@ -5,9 +5,11 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   useFonts,
   Inter_400Regular,
@@ -33,6 +35,8 @@ export default function ScheduleScreen() {
   const { colors } = useAppTheme();
   const [viewType, setViewType] = useState("week"); // week or month
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [userSchedule, setUserSchedule] = useState({}); // persisted additions
+  const SCHEDULE_KEY = "@schedule_data";
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -108,9 +112,70 @@ export default function ScheduleScreen() {
     ],
   };
 
+  // Load saved schedule from storage (must be before any early returns)
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(SCHEDULE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") setUserSchedule(parsed);
+        }
+      } catch {}
+    })();
+  }, []);
+
   if (!fontsLoaded) {
     return null;
   }
+
+  const persistUserSchedule = async (next) => {
+    setUserSchedule(next);
+    try { await AsyncStorage.setItem(SCHEDULE_KEY, JSON.stringify(next)); } catch {}
+  };
+
+  const formatTimeHM = (date) => {
+    const h = String(date.getHours()).padStart(2, "0");
+    const m = String(date.getMinutes()).padStart(2, "0");
+    return `${h}:${m}`;
+  };
+
+  const addScheduleItem = async (dateObj) => {
+    const dateKey = formatDate(dateObj);
+    const defaultItem = {
+      id: Date.now(),
+      title: "Custom Workout",
+      time: formatTimeHM(new Date(Date.now() + 60 * 60 * 1000)), // +1h
+      duration: 45,
+      status: "scheduled",
+      type: "workout",
+      aiConflict: false,
+      userItem: true,
+    };
+    const next = { ...userSchedule, [dateKey]: [ ...(userSchedule[dateKey] || []), defaultItem ] };
+    await persistUserSchedule(next);
+  };
+
+  const deleteUserItem = async (dateKey, id) => {
+    const list = userSchedule[dateKey] || [];
+    const next = { ...userSchedule, [dateKey]: list.filter((it) => it.id !== id) };
+    await persistUserSchedule(next);
+  };
+
+  const addMinutesToTime = (timeStr, minutes) => {
+    const [h, m] = timeStr.split(":").map((n) => parseInt(n, 10));
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    d.setMinutes(d.getMinutes() + minutes);
+    return formatTimeHM(d);
+  };
+
+  const rescheduleUserItem = async (dateKey, id, minutes = 30) => {
+    const list = userSchedule[dateKey] || [];
+    const nextList = list.map((it) => (it.id === id ? { ...it, time: addMinutesToTime(it.time, minutes) } : it));
+    const next = { ...userSchedule, [dateKey]: nextList };
+    await persistUserSchedule(next);
+  };
 
   const getWeekDays = () => {
     const today = new Date();
@@ -156,7 +221,7 @@ export default function ScheduleScreen() {
     }
   };
 
-  const WorkoutItem = ({ item }) => (
+  const WorkoutItem = ({ item, dateKey }) => (
     <TouchableOpacity
       style={{
         backgroundColor: colors.surface,
@@ -262,6 +327,48 @@ export default function ScheduleScreen() {
           </Text>
         </View>
       )}
+
+      {item.userItem && (
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.surface,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+            onPress={() => rescheduleUserItem(dateKey, item.id, 30)}
+          >
+            <Text style={{ fontFamily: "Inter_500Medium", fontSize: 12, color: colors.primary }}>
+              +30 min
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.red,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+            }}
+            onPress={() =>
+              Alert.alert(
+                "Delete",
+                "Remove this scheduled workout?",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Delete", style: "destructive", onPress: () => deleteUserItem(dateKey, item.id) },
+                ]
+              )
+            }
+          >
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: colors.background }}>
+              Delete
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -359,7 +466,14 @@ export default function ScheduleScreen() {
     );
   };
 
-  const selectedDateSchedule = scheduleData[formatDate(selectedDate)] || [];
+  const getMergedForDate = (dateKey) => {
+    const base = scheduleData[dateKey] || [];
+    const extra = userSchedule[dateKey] || [];
+    // simple sort by time HH:mm
+    const merged = [...base, ...extra].sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+    return merged;
+  };
+  const selectedDateSchedule = getMergedForDate(formatDate(selectedDate));
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -405,18 +519,19 @@ export default function ScheduleScreen() {
               <CalendarIcon size={20} color={colors.primary} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={{
-                backgroundColor: colors.yellow,
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Plus size={24} color={colors.background} />
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.yellow,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            onPress={() => addScheduleItem(selectedDate)}
+          >
+            <Plus size={24} color={colors.background} />
+          </TouchableOpacity>
           </View>
         </View>
 
@@ -535,7 +650,7 @@ export default function ScheduleScreen() {
         {selectedDateSchedule.length > 0 ? (
           <FlatList
             data={selectedDateSchedule}
-            renderItem={({ item }) => <WorkoutItem item={item} />}
+            renderItem={({ item }) => <WorkoutItem item={item} dateKey={formatDate(selectedDate)} />}
             keyExtractor={(item) => item.id.toString()}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 20 }}
@@ -583,28 +698,29 @@ export default function ScheduleScreen() {
             >
               This is a perfect day for rest or try an AI recommended workout
             </Text>
-            <TouchableOpacity
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.yellow,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 16,
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+            onPress={() => addScheduleItem(selectedDate)}
+          >
+            <Plus size={16} color={colors.background} />
+            <Text
               style={{
-                backgroundColor: colors.yellow,
-                paddingHorizontal: 24,
-                paddingVertical: 12,
-                borderRadius: 16,
-                flexDirection: "row",
-                alignItems: "center",
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 14,
+                color: colors.background,
+                marginLeft: 8,
               }}
             >
-              <Plus size={16} color={colors.background} />
-              <Text
-                style={{
-                  fontFamily: "Inter_600SemiBold",
-                  fontSize: 14,
-                  color: colors.background,
-                  marginLeft: 8,
-                }}
-              >
-                Add Workout
-              </Text>
-            </TouchableOpacity>
+              Add Workout
+            </Text>
+          </TouchableOpacity>
           </View>
         )}
       </View>

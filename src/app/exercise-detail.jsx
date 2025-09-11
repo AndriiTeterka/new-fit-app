@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Image, Alert } from "react-native";
+import { Share as RNShare } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -191,7 +192,18 @@ export default function ExerciseDetailScreen() {
             >
               <Heart size={18} color={isFavorited ? colors.red : colors.secondary} fill={isFavorited ? colors.red : "none"} />
             </TouchableOpacity>
-            <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceVariant, justifyContent: "center", alignItems: "center" }}>
+            <TouchableOpacity 
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceVariant, justifyContent: "center", alignItems: "center" }}
+              onPress={async () => {
+                try {
+                  await RNShare.share({
+                    message: `Exercise: ${exercise.name} (Category: ${exercise.category})\nPrimary: ${exercise.primaryMuscles.join(', ')}`,
+                  });
+                } catch (e) {
+                  Alert.alert("Share Failed", "Unable to open share dialog.");
+                }
+              }}
+            >
               <Share size={18} color={colors.secondary} />
             </TouchableOpacity>
           </View>

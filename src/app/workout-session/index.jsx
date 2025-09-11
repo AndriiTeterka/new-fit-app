@@ -1,15 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Animated, Alert, Modal } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
 import { ChevronLeft, Check, Clock, Target, Brain, Settings } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import { getTemplateById } from "@/storage/templates";
 
 export default function WorkoutSessionScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const params = useLocalSearchParams();
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
   const [isResting, setIsResting] = useState(false);
@@ -18,6 +21,7 @@ export default function WorkoutSessionScreen() {
   const [showRPEModal, setShowRPEModal] = useState(false);
   const [selectedRPE, setSelectedRPE] = useState(5);
   const [totalCaloriesBurned, setTotalCaloriesBurned] = useState(0);
+  const [finished, setFinished] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -28,7 +32,7 @@ export default function WorkoutSessionScreen() {
     Inter_700Bold,
   });
 
-  const workout = {
+  const defaultWorkout = {
     id: 1,
     title: "Upper Body Strength",
     exercises: [
@@ -54,8 +58,34 @@ export default function WorkoutSessionScreen() {
       },
     ],
   };
+  const [workout, setWorkout] = useState(defaultWorkout);
 
-  const currentExercise = workout.exercises[currentExerciseIndex];
+  // Load template by id if provided
+  useEffect(() => {
+    const id = params?.id;
+    if (!id) return;
+    (async () => {
+      const tpl = await getTemplateById(id);
+      if (tpl) {
+        setWorkout({
+          id: tpl.id,
+          title: tpl.title,
+          exercises: Array.isArray(tpl.exercises) && tpl.exercises.length > 0 ? tpl.exercises : defaultWorkout.exercises,
+        });
+      }
+    })();
+  }, [params?.id]);
+
+  const currentExercise = (workout.exercises && workout.exercises[currentExerciseIndex]) || {
+    id: 0,
+    name: "",
+    sets: 0,
+    targetReps: "",
+    weight: "",
+    restTime: 0,
+    instructions: "",
+    formTips: [],
+  };
   const isLastExercise = currentExerciseIndex === workout.exercises.length - 1;
   const isLastSet = currentSetIndex === currentExercise.sets - 1;
 
@@ -94,6 +124,29 @@ export default function WorkoutSessionScreen() {
     return () => clearInterval(timerInterval);
   }, [isResting, restTimer]);
 
+  // Persist a simple workout log when finishing the last set of the last exercise
+  useEffect(() => {
+    if (!finished) return;
+    (async () => {
+      try {
+        const key = "@workout_logs";
+        const raw = await AsyncStorage.getItem(key);
+        const logs = raw ? JSON.parse(raw) : [];
+        const entry = {
+          id: Date.now(),
+          workoutId: workout.id,
+          title: workout.title,
+          durationSeconds: workoutDuration,
+          calories: totalCaloriesBurned,
+          completedAt: new Date().toISOString(),
+        };
+        logs.push(entry);
+        await AsyncStorage.setItem(key, JSON.stringify(logs));
+      } catch {}
+      setFinished(false);
+    })();
+  }, [finished]);
+
   if (!fontsLoaded) return null;
 
   const formatTime = (seconds) => {
@@ -106,6 +159,7 @@ export default function WorkoutSessionScreen() {
     setTotalCaloriesBurned(prev => prev + Math.floor(Math.random() * 10) + 5);
 
     if (isLastSet && isLastExercise) {
+      setFinished(true);
       Alert.alert(
         "Workout Complete! 🎉",
         `Great job! You completed your workout in ${formatTime(workoutDuration)} and burned approximately ${totalCaloriesBurned} calories.`,
@@ -218,7 +272,7 @@ export default function WorkoutSessionScreen() {
             <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: colors.primary, marginBottom: 8 }}>
               Form Tips
             </Text>
-            {currentExercise.formTips.map((tip, index) => (
+            {Array.isArray(currentExercise.formTips) && currentExercise.formTips.map((tip, index) => (
               <View key={index} style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
                 <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.yellow, marginRight: 8 }} />
                 <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: colors.secondary }}>
