@@ -30,6 +30,7 @@ import {
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
 import { router } from "expo-router";
+import { useTemplates } from "@/queries/templates";
 import { useFocusEffect } from "@react-navigation/native";
 import { getTemplates } from "@/storage/templates";
 
@@ -41,6 +42,7 @@ export default function WorkoutsScreen() {
   const [shortOnly, setShortOnly] = useState(false); // client-side filter: <= 30 min
 
   const [templates, setTemplates] = useState([]);
+  const { data: remoteTemplates = [] } = useTemplates();
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -359,7 +361,9 @@ const WorkoutCard = ({ workout }) => (
   );
 
   const renderTabContent = () => {
-    const base = templates.length ? templates : (workoutData[activeTab] || []);
+    const base = (remoteTemplates && remoteTemplates.length)
+      ? remoteTemplates
+      : (templates.length ? templates : (workoutData[activeTab] || []));
     const workouts = base
       .filter((w) =>
         searchQuery.trim().length === 0

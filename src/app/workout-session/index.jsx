@@ -190,14 +190,16 @@ export default function WorkoutSessionScreen() {
           <Settings size={20} color={colors.secondary} />
         </View>
 
-        <View style={{ marginTop: 16, backgroundColor: colors.surfaceVariant, height: 4, borderRadius: 2 }}>
-          <View style={{
-            width: `${((currentExerciseIndex * workout.exercises[0].sets + currentSetIndex + 1) / (workout.exercises.length * workout.exercises[0].sets)) * 100}%`,
-            height: 4,
-            backgroundColor: colors.yellow,
-            borderRadius: 2,
-          }} />
-        </View>
+        {(() => {
+          const firstSets = (Array.isArray(workout.exercises) && workout.exercises[0] && workout.exercises[0].sets) ? (workout.exercises[0].sets || 1) : 1;
+          const totalExercisesGuard = Array.isArray(workout.exercises) ? workout.exercises.length : 1;
+          const pct = ((currentExerciseIndex * firstSets + currentSetIndex + 1) / (totalExercisesGuard * firstSets)) * 100;
+          return (
+            <View style={{ marginTop: 16, backgroundColor: colors.surfaceVariant, height: 4, borderRadius: 2 }}>
+              <View style={{ width: `${pct}%`, height: 4, backgroundColor: colors.yellow, borderRadius: 2 }} />
+            </View>
+          );
+        })()}
       </View>
 
       {isResting && (
