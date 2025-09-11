@@ -76,18 +76,9 @@ export default function WorkoutSessionScreen() {
     })();
   }, [params?.id]);
 
-  const currentExercise = (workout.exercises && workout.exercises[currentExerciseIndex]) || {
-    id: 0,
-    name: "",
-    sets: 0,
-    targetReps: "",
-    weight: "",
-    restTime: 0,
-    instructions: "",
-    formTips: [],
-  };
-  const isLastExercise = currentExerciseIndex === workout.exercises.length - 1;
-  const isLastSet = currentSetIndex === currentExercise.sets - 1;
+  const currentExercise = (workout.exercises && workout.exercises[currentExerciseIndex]) || { id: 0, name: "", sets: 0, targetReps: "", weight: "", restTime: 0, instructions: "", formTips: [] };
+  const totalExercises = Array.isArray(workout.exercises) ? workout.exercises.length : 0; const isLastExercise = totalExercises > 0 ? currentExerciseIndex === totalExercises - 1 : true;
+  const isLastSet = currentSetIndex === ((currentExercise && currentExercise.sets) || 0) - 1;
 
   useEffect(() => {
     const workoutInterval = setInterval(() => {
@@ -169,7 +160,7 @@ export default function WorkoutSessionScreen() {
       setCurrentExerciseIndex(prev => prev + 1);
       setCurrentSetIndex(0);
       setIsResting(true);
-      setRestTimer(workout.exercises[currentExerciseIndex + 1].restTime);
+      const nextEx = Array.isArray(workout.exercises) ? workout.exercises[currentExerciseIndex + 1] : null; setRestTimer(nextEx && nextEx.restTime ? nextEx.restTime : 0);
     } else {
       setCurrentSetIndex(prev => prev + 1);
       setIsResting(true);

@@ -789,7 +789,7 @@ export default function WorkoutDetailScreen() {
             Exercises ({workout.exercises.length})
           </Text>
 
-          {workout.exercises.map((exercise, index) => (
+          {Array.isArray(workout.exercises) && workout.exercises.map((exercise, index) => (
             <ExerciseCard key={exercise.id} exercise={exercise} index={index} />
           ))}
         </View>
