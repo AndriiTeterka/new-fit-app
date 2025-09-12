@@ -152,7 +152,7 @@ export default function WorkoutSessionScreen() {
     if (isLastSet && isLastExercise) {
       setFinished(true);
       Alert.alert(
-        "Workout Complete! 🎉",
+        "Workout Complete!",
         `Great job! You completed your workout in ${formatTime(workoutDuration)} and burned approximately ${totalCaloriesBurned} calories.`,
         [{ text: "Done", onPress: () => router.push("/(tabs)/home") }]
       );

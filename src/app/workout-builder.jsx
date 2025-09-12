@@ -7,11 +7,14 @@ import { ChevronLeft, Plus, Trash2, Copy, Save, Check } from "lucide-react-nativ
 import { useAppTheme } from "@/utils/theme";
 import { router, useLocalSearchParams } from "expo-router";
 import { getTemplateById, upsertTemplate, deleteTemplate, duplicateTemplate } from "@/storage/templates";
+import { upsertTemplateRemote, deleteTemplateRemote } from "@/queries/templates";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function WorkoutBuilderScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const params = useLocalSearchParams();
+  const queryClient = useQueryClient();
   const [template, setTemplate] = React.useState({
     id: null,
     title: "New Workout",
@@ -177,7 +180,10 @@ export default function WorkoutBuilderScreen() {
         <View style={{ flexDirection: "row", gap: 12 }}>
           <TouchableOpacity
             onPress={async () => {
+              // Push to Supabase (best-effort) then local, invalidate list
+              try { await upsertTemplateRemote(template); } catch {}
               const saved = await upsertTemplate(template);
+              queryClient.invalidateQueries({ queryKey: ['templates'] });
               router.replace(`/workout-detail?id=${encodeURIComponent(saved.id)}`);
             }}
             style={{ flex: 1, backgroundColor: colors.yellow, borderRadius: 14, paddingVertical: 14, alignItems: "center" }}
@@ -208,7 +214,7 @@ export default function WorkoutBuilderScreen() {
               onPress={() =>
                 Alert.alert("Delete Workout", "This cannot be undone.", [
                   { text: "Cancel", style: "cancel" },
-                  { text: "Delete", style: "destructive", onPress: async () => { await deleteTemplate(template.id); router.replace("/(tabs)/workouts"); } },
+                  { text: "Delete", style: "destructive", onPress: async () => { try { await deleteTemplateRemote(String(template.id)); } catch {} await deleteTemplate(template.id); queryClient.invalidateQueries({ queryKey: ['templates'] }); router.replace("/(tabs)/workouts"); } },
                 ])
               }
               style={{ paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14, backgroundColor: colors.red }}

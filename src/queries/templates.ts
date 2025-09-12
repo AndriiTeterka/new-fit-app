@@ -52,7 +52,7 @@ export function useTemplates() {
   const queryClient = useQueryClient();
   const useRemote = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && supabase);
 
-  return useQuery<Template[]>({
+  const q = useQuery<Template[]>({
     queryKey: ['templates'],
     queryFn: async () => {
       if (!useRemote) {
@@ -76,4 +76,47 @@ export function useTemplates() {
     },
     staleTime: 60_000,
   });
+
+  return q;
+}
+
+export function subscribeTemplates(onChange: () => void) {
+  if (!supabase) return () => {};
+  const channel = supabase
+    .channel('public:templates')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'templates' }, () => {
+      try { onChange(); } catch {}
+    })
+    .subscribe();
+  return () => {
+    try { supabase.removeChannel(channel); } catch {}
+  };
+}
+
+export async function upsertTemplateRemote(t: Template) {
+  if (!supabase) return { data: null, error: null } as const;
+  const row: any = {
+    id: String(t.id),
+    title: t.title,
+    duration: t.duration ?? null,
+    difficulty: t.difficulty ?? null,
+    category: t.category ?? null,
+    exercises: Array.isArray((t as any).exercises) ? (t as any).exercises : [],
+  };
+  try {
+    const { data, error } = await supabase.from('templates').upsert(row).select().limit(1);
+    return { data, error } as const;
+  } catch (error) {
+    return { data: null, error } as const;
+  }
+}
+
+export async function deleteTemplateRemote(id: string) {
+  if (!supabase) return { data: null, error: null } as const;
+  try {
+    const { data, error } = await supabase.from('templates').delete().eq('id', id);
+    return { data, error } as const;
+  } catch (error) {
+    return { data: null, error } as const;
+  }
 }
