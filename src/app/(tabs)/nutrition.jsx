@@ -27,6 +27,7 @@ import {
   Utensils,
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import FocusTransitionView from "@/components/FocusTransitionView";
 
 export default function NutritionScreen() {
   const insets = useSafeAreaInsets();
@@ -384,7 +385,7 @@ export default function NutritionScreen() {
   const remainingCalories = dailyStats.calories.goal - dailyStats.calories.consumed;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView fadeOnBlur style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       <ScrollView
@@ -816,6 +817,11 @@ export default function NutritionScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </FocusTransitionView>
   );
 }
+
+
+
+
+

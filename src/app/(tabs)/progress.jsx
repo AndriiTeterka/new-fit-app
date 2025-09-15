@@ -32,6 +32,7 @@ import {
   Download,
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import FocusTransitionView from "@/components/FocusTransitionView";
 
 const { width } = Dimensions.get("window");
 
@@ -559,7 +560,7 @@ export default function ProgressScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView fadeOnBlur style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       <ScrollView
@@ -787,6 +788,11 @@ export default function ProgressScreen() {
           ))}
         </View>
       </ScrollView>
-    </View>
+    </FocusTransitionView>
   );
 }
+
+
+
+
+

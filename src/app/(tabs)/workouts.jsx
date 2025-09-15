@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, FlatList } from "react-native";
+import FocusTransitionView from "@/components/FocusTransitionView";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -137,7 +138,7 @@ export default function WorkoutsScreen() {
   }, [remoteTemplates, templates, activeTab, searchQuery, shortOnly]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView fadeOnBlur style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       <View style={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 20 }}>
@@ -182,6 +183,11 @@ export default function WorkoutsScreen() {
       <View style={{ flex: 1, paddingHorizontal: 20 }}>
         {renderTabContent}
       </View>
-    </View>
+    </FocusTransitionView>
   );
 }
+
+
+
+
+

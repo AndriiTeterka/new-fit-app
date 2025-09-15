@@ -35,6 +35,7 @@ import {
   MapPin,
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import FocusTransitionView from "@/components/FocusTransitionView";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -327,7 +328,7 @@ export default function ProfileScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView fadeOnBlur style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       <ScrollView
@@ -577,6 +578,11 @@ export default function ProfileScreen() {
           </SettingsSection>
         </View>
       </ScrollView>
-    </View>
+    </FocusTransitionView>
   );
 }
+
+
+
+
+

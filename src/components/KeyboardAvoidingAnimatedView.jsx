@@ -16,9 +16,10 @@ const KeyboardAvoidingAnimatedView = (props, ref) => {
   } = props;
 
   const animatedViewRef = useRef(null); // ref to animated view in this polyfill
-  const initialHeightRef = useRef(0); // original height of animated view before keyboard appears
   const bottomRef = useRef(0); // current bottom offset value of animated view
   const bottomHeight = useSharedValue(0); // whats going to be added to the bottom when keyboard appears
+  // Use a shared value for initial height so worklets can read without ref mutation warnings
+  const initialHeight = useSharedValue(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -58,7 +59,7 @@ const KeyboardAvoidingAnimatedView = (props, ref) => {
   const animatedStyle = useAnimatedStyle(() => {
     if (behavior === 'height') {
       return {
-        height: initialHeightRef.current - bottomHeight.value,
+        height: Math.max(0, initialHeight.value - bottomHeight.value),
         flex: bottomHeight.value > 0 ? 0 : null,
       };
     }
@@ -79,8 +80,8 @@ const KeyboardAvoidingAnimatedView = (props, ref) => {
     animatedViewRef.current = layout;
 
     // initial height before keybaord appears
-    if (!initialHeightRef.current) {
-      initialHeightRef.current = layout.height;
+    if (!initialHeight.value) {
+      initialHeight.value = layout.height;
     }
 
     if (onLayout) {

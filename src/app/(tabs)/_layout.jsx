@@ -17,6 +17,10 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Detach inactive scenes to ensure our per-screen focus transition is visible
+        detachInactiveScreens: false,
+        lazy: false,
+        sceneContainerStyle: { backgroundColor: colors.background },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopWidth: 1,
@@ -80,3 +84,4 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+

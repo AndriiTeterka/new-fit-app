@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Animated,
   Alert,
+  Modal,
+  TextInput,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,13 +35,17 @@ import {
   Info,
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
-import { getTemplateById } from "@/storage/templates";
+import FocusTransitionView from "@/components/FocusTransitionView";
+import { getTemplateById, upsertTemplate } from "@/storage/templates";
+import { upsertTemplateRemote } from "@/queries/templates";
 
 export default function WorkoutDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const params = useLocalSearchParams();
   const [isStarting, setIsStarting] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editForm, setEditForm] = useState({ sets: "", reps: "", weight: "", time: "" });
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const [fontsLoaded] = useFonts({
@@ -252,7 +258,7 @@ export default function WorkoutDetailScreen() {
         borderWidth: 1,
         borderColor: colors.border,
       }}
-      onPress={() => router.push("/exercise-detail")}
+      onPress={() => router.push(`/exercise-detail?id=${encodeURIComponent(exercise.id)}`)}
     >
       <View
         style={{
@@ -302,7 +308,21 @@ export default function WorkoutDetailScreen() {
               {exercise.name}
             </Text>
           </View>
-
+          {/* Edit button */}
+          <TouchableOpacity onPress={() => {
+            setEditingIndex(index);
+            setEditForm({
+              sets: String(exercise.sets ?? ""),
+              reps: String(exercise.reps ?? ""),
+              weight: String(exercise.weight ?? ""),
+              time: String(exercise.restTime ?? ""),
+            });
+          }}
+          style={{ paddingHorizontal: 10, paddingVertical: 6, alignSelf: 'flex-start' }}
+          >
+            <Edit size={18} color={colors.secondary} />
+          </TouchableOpacity>
+        
           <View style={{ marginLeft: 36 }}>
             <View
               style={{
@@ -389,7 +409,7 @@ export default function WorkoutDetailScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       {/* Header */}
@@ -795,6 +815,76 @@ export default function WorkoutDetailScreen() {
         </View>
       </ScrollView>
 
+      {/* Edit Exercise Modal */}
+      <Modal visible={editingIndex !== null} transparent animationType="fade" onRequestClose={() => setEditingIndex(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '90%', backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: colors.primary, marginBottom: 12 }}>Edit Exercise</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Inter_500Medium', color: colors.secondary, marginBottom: 4 }}>Sets</Text>
+                <TextInput keyboardType="number-pad" value={editForm.sets} onChangeText={(v) => setEditForm((f) => ({ ...f, sets: v }))} style={{ backgroundColor: colors.background, borderRadius: 10, padding: 10, color: colors.primary }} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Inter_500Medium', color: colors.secondary, marginBottom: 4 }}>Reps</Text>
+                <TextInput value={editForm.reps} onChangeText={(v) => setEditForm((f) => ({ ...f, reps: v }))} style={{ backgroundColor: colors.background, borderRadius: 10, padding: 10, color: colors.primary }} />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Inter_500Medium', color: colors.secondary, marginBottom: 4 }}>Weight</Text>
+                <TextInput value={editForm.weight} onChangeText={(v) => setEditForm((f) => ({ ...f, weight: v }))} placeholder="e.g. 40 kg" placeholderTextColor={colors.tertiary} style={{ backgroundColor: colors.background, borderRadius: 10, padding: 10, color: colors.primary }} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Inter_500Medium', color: colors.secondary, marginBottom: 4 }}>Rest (sec)</Text>
+                <TextInput keyboardType="number-pad" value={editForm.time} onChangeText={(v) => setEditForm((f) => ({ ...f, time: v }))} style={{ backgroundColor: colors.background, borderRadius: 10, padding: 10, color: colors.primary }} />
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+              <TouchableOpacity onPress={() => setEditingIndex(null)} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ fontFamily: 'Inter_600SemiBold', color: colors.secondary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    const idx = editingIndex;
+                    if (idx === null) return;
+                    const updatedExercises = workout.exercises.map((ex, i) => (
+                      i === idx
+                        ? {
+                            ...ex,
+                            sets: parseInt(editForm.sets || '0', 10) || ex.sets || 0,
+                            reps: editForm.reps || ex.reps || '',
+                            weight: editForm.weight || ex.weight || '',
+                            restTime: parseInt(editForm.time || String(ex.restTime || 0), 10) || ex.restTime || 0,
+                          }
+                        : ex
+                    ));
+                    const nextWorkout = { ...workout, exercises: updatedExercises };
+                    // Persist to templates storage
+                    const tpl = await getTemplateById(String(workout.id));
+                    const updatedTemplate = tpl
+                      ? { ...tpl, exercises: updatedExercises.map((e) => ({ id: e.id, name: e.name, sets: e.sets, reps: e.reps, restSec: e.restTime, weight: e.weight })) }
+                      : { id: String(workout.id), title: workout.title, duration: workout.duration, difficulty: workout.difficulty, category: workout.category, exercises: updatedExercises.map((e) => ({ id: e.id, name: e.name, sets: e.sets, reps: e.reps, restSec: e.restTime, weight: e.weight })) };
+                    try { await upsertTemplateRemote(updatedTemplate); } catch {}
+                    await upsertTemplate(updatedTemplate);
+                    // Update UI
+                    setWorkout(nextWorkout);
+                    setEditingIndex(null);
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.yellow }}
+              >
+                <Text style={{ fontFamily: 'Inter_600SemiBold', color: colors.background }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Bottom Action Bar */}
       <View
         style={{
@@ -873,6 +963,6 @@ export default function WorkoutDetailScreen() {
           </Animated.View>
         </View>
       </View>
-    </View>
+    </FocusTransitionView>
   );
 }

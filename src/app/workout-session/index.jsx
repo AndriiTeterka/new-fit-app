@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Animated, Alert, Modal } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import ModalTransitionView from "@/components/ModalTransitionView";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
 import { ChevronLeft, Check, Clock, Target, Brain, Settings } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import FocusTransitionView from "@/components/FocusTransitionView";
 import { getTemplateById } from "@/storage/templates";
 
 export default function WorkoutSessionScreen() {
@@ -169,7 +171,7 @@ export default function WorkoutSessionScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 20, paddingBottom: 20, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -301,9 +303,9 @@ export default function WorkoutSessionScreen() {
         </TouchableOpacity>
       </View>
 
-      <Modal visible={showRPEModal} transparent animationType="slide">
+      <Modal visible={showRPEModal} transparent animationType="none">
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
+          <ModalTransitionView visible={showRPEModal} style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
             <Text style={{ fontFamily: "Inter_700Bold", fontSize: 20, color: colors.primary, textAlign: "center", marginBottom: 24 }}>
               Rate Perceived Exertion (1-10)
             </Text>
@@ -343,9 +345,9 @@ export default function WorkoutSessionScreen() {
                 Cancel
               </Text>
             </TouchableOpacity>
-          </View>
+          </ModalTransitionView>
         </View>
       </Modal>
-    </View>
+    </FocusTransitionView>
   );
 }

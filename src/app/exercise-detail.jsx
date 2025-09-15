@@ -7,6 +7,7 @@ import { router } from "expo-router";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
 import { ChevronLeft, Play, Heart, Share, AlertTriangle, Target, Clock, Dumbbell } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import FocusTransitionView from "@/components/FocusTransitionView";
 
 export default function ExerciseDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -176,7 +177,7 @@ export default function ExerciseDetailScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 20, paddingBottom: 20, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -307,6 +308,6 @@ export default function ExerciseDetailScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </FocusTransitionView>
   );
 }
