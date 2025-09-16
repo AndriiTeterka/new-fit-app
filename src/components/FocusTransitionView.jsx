@@ -3,45 +3,56 @@ import { View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { useIsFocused } from '@react-navigation/native';
 
-// Fades content in whenever a screen gains focus (e.g., switching tabs)
-// Uses a slower duration to make the effect more noticeable across the app
-export default function FocusTransitionView({ style, children, duration = 500, fadeOnBlur = false, startOpacity = 0.88 }) {
+export default function FocusTransitionView({
+  style,
+  children,
+  duration = 500,
+  fadeOnBlur = false,
+  startOpacity: startOpacityProp,
+}) {
   const focused = useIsFocused();
-  const opacity = useSharedValue(1);
-  const prevFocusedRef = React.useRef(focused);
+  const prevFocusedRef = React.useRef(null);
+
+  const normalizedStartOpacity = React.useMemo(() => {
+    const fallback = fadeOnBlur ? 0.1 : 0;
+    const value = startOpacityProp ?? fallback;
+    return Math.min(1, Math.max(0, value));
+  }, [fadeOnBlur, startOpacityProp]);
+
+  const focusStart = fadeOnBlur ? normalizedStartOpacity : 0;
+  const blurTarget = fadeOnBlur ? normalizedStartOpacity : 0;
+
+  const opacity = useSharedValue(focused ? focusStart : blurTarget);
 
   React.useEffect(() => {
     const easeOut = Easing.out(Easing.cubic);
     const easeIn = Easing.in(Easing.cubic);
     const wasFocused = prevFocusedRef.current;
 
-    if (focused && !wasFocused) {
-      // Focus gained
-      if (fadeOnBlur) {
-        // Tabs: start near-opaque then fade to 1
-        opacity.value = startOpacity;
-        opacity.value = withTiming(1, { duration, easing: easeOut });
-      } else {
-        // Stack: fade in from 0
-        opacity.value = 0;
-        opacity.value = withTiming(1, { duration, easing: easeOut });
+    const focusDuration = Math.max(120, duration);
+    const blurDuration = fadeOnBlur
+      ? Math.min(focusDuration, Math.max(90, Math.floor(duration * 0.35)))
+      : Math.min(260, Math.max(120, Math.floor(duration * 0.55)));
+
+    if (focused) {
+      const shouldAnimateIn = wasFocused !== true;
+      if (shouldAnimateIn) {
+        opacity.value = focusStart;
+        opacity.value = withTiming(1, { duration: focusDuration, easing: easeOut });
       }
-    } else if (!focused && wasFocused) {
-      // Focus lost
-      if (fadeOnBlur) {
-        const blurDuration = Math.min(200, Math.max(80, Math.floor(duration * 0.35)));
-        opacity.value = withTiming(startOpacity, { duration: blurDuration, easing: easeIn });
-      } else {
-        opacity.value = 1;
+    } else {
+      const target = blurTarget;
+      const shouldAnimateOut = wasFocused === true || opacity.value !== target;
+      if (shouldAnimateOut) {
+        opacity.value = withTiming(target, { duration: blurDuration, easing: easeIn });
       }
     }
 
     prevFocusedRef.current = focused;
-  }, [focused, duration, fadeOnBlur, startOpacity, opacity]);
+  }, [focused, duration, fadeOnBlur, focusStart, blurTarget, opacity]);
 
   const styleA = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
-  // Keep background static while only content fades to avoid white flashes
   return (
     <View style={[{ flex: 1 }, style]}>
       <Animated.View style={[{ flex: 1 }, styleA]}>{children}</Animated.View>

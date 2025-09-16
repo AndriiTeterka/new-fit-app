@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -245,6 +245,7 @@ export default function WorkoutBuilderScreen() {
                     key={String(exercise.id)}
                     exercise={exercise}
                     index={index}
+                    count={exercises.length}
                     onDelete={() => deleteExercise(index)}
                     onMoveByOffset={moveExerciseByOffset}
                     onEdit={() => openEdit(index)}
@@ -297,38 +298,59 @@ export default function WorkoutBuilderScreen() {
   );
 }
 
-function ExerciseCard({ exercise, index, onDelete, onMoveByOffset, onEdit, onDragStateChange }) {
+function ExerciseCard({ exercise, index, count, onDelete, onMoveByOffset, onEdit, onDragStateChange }) {
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
   const dragging = useSharedValue(0);
-  const swapCount = useSharedValue(0);
-  const lastSwapDir = useSharedValue(0);
   const measuredH = useSharedValue(76);
+  const swapOffset = useSharedValue(0);
+  const startIndex = useSharedValue(index);
+  const totalCount = useSharedValue(count);
+
+  const triggerDragStartHaptic = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
+  const triggerSwapHaptic = useCallback(() => {
+    Haptics.selectionAsync();
+  }, []);
 
   const panGesture = Gesture.Pan()
+    .activateAfterLongPress(150)
+    .maxPointers(1)
     .onStart(() => {
       dragging.value = 1;
-      swapCount.value = 0;
-      lastSwapDir.value = 0;
-      scale.value = withTiming(1.02, { duration: 70 });
+      swapOffset.value = 0;
+      startIndex.value = index;
+      totalCount.value = count;
+      translateY.value = 0;
+      scale.value = withTiming(1.02, { duration: 120 });
       runOnJS(onDragStateChange)?.(true);
+      runOnJS(triggerDragStartHaptic)();
     })
     .onUpdate((event) => {
       'worklet';
-      const h = measuredH.value || 76;
-      const localY = event.translationY - swapCount.value * h;
-      translateY.value = localY;
-      // Compute absolute offset in rows, move in one step, keep under finger
-      const offset = Math.round(localY / h);
-      if (offset !== 0) {
-        swapCount.value += offset;
-        runOnJS(onMoveByOffset)(exercise.id, offset);
+      const itemHeight = measuredH.value || 76;
+      const relativeY = event.translationY - swapOffset.value * itemHeight;
+      translateY.value = relativeY;
+
+      if (relativeY > itemHeight / 2 && startIndex.value + swapOffset.value < totalCount.value - 1) {
+        swapOffset.value += 1;
+        translateY.value = event.translationY - swapOffset.value * itemHeight;
+        runOnJS(onMoveByOffset)(exercise.id, 1);
+        runOnJS(triggerSwapHaptic)();
+      } else if (relativeY < -itemHeight / 2 && startIndex.value + swapOffset.value > 0) {
+        swapOffset.value -= 1;
+        translateY.value = event.translationY - swapOffset.value * itemHeight;
+        runOnJS(onMoveByOffset)(exercise.id, -1);
+        runOnJS(triggerSwapHaptic)();
       }
     })
-    .onEnd(() => {
+    .onFinalize(() => {
       dragging.value = 0;
-      translateY.value = withTiming(0, { duration: 80 });
-      scale.value = withTiming(1, { duration: 80 });
+      swapOffset.value = 0;
+      translateY.value = withTiming(0, { duration: 160 });
+      scale.value = withTiming(1, { duration: 160 });
       runOnJS(onDragStateChange)?.(false);
     });
 
@@ -337,20 +359,35 @@ function ExerciseCard({ exercise, index, onDelete, onMoveByOffset, onEdit, onDra
     zIndex: dragging.value ? 10 : 0,
   }));
 
+  const setsValue = exercise.sets ?? exercise.default_sets;
+  const metaPieces = [];
+  if (setsValue !== undefined && setsValue !== null && setsValue !== '') {
+    metaPieces.push(`${setsValue} sets`);
+  }
+  if (exercise.muscle_group) {
+    metaPieces.push(exercise.muscle_group);
+  }
+
   return (
     <GestureDetector gesture={panGesture}>
-      <Animated.View style={[animatedStyle]} layout={Layout.duration(90)}>
+      <Animated.View
+        style={[animatedStyle]}
+        layout={Layout.springify().damping(18).stiffness(220)}
+        onLayout={(e) => {
+          measuredH.value = e.nativeEvent.layout.height || measuredH.value;
+        }}
+      >
         <View style={{ backgroundColor: "#1C1C1E", borderRadius: 12, padding: 16, flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity style={{ marginRight: 12, padding: 4 }} activeOpacity={0.6}>
             <GripVertical size={20} color="#8E8E93" />
           </TouchableOpacity>
 
-          <View style={{ flex: 1 }} onLayout={(e) => { measuredH.value = e.nativeEvent.layout.height || measuredH.value; }}>
+          <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 16, color: "#FFFFFF", marginBottom: 4 }}>
               {exercise.name}
             </Text>
             <Text style={{ fontFamily: "Inter_400Regular", fontSize: 14, color: "#8E8E93" }}>
-              {(exercise.default_sets || exercise.sets)} sets • {exercise.muscle_group}
+              {metaPieces.join(' | ')}
             </Text>
           </View>
 
