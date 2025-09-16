@@ -29,6 +29,7 @@ import {
   Heart,
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import FocusTransitionView from "@/components/FocusTransitionView";
 
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
@@ -476,7 +477,7 @@ export default function ScheduleScreen() {
   const selectedDateSchedule = getMergedForDate(formatDate(selectedDate));
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView fadeOnBlur style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       {/* Header */}
@@ -724,6 +725,11 @@ export default function ScheduleScreen() {
           </View>
         )}
       </View>
-    </View>
+    </FocusTransitionView>
   );
 }
+
+
+
+
+

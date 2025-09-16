@@ -29,6 +29,7 @@ import {
   Dumbbell,
 } from "lucide-react-native";
 import { useAppTheme } from "@/utils/theme";
+import FocusTransitionView from "@/components/FocusTransitionView";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -178,7 +179,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <FocusTransitionView fadeOnBlur style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="light" />
 
       <ScrollView
@@ -623,6 +624,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </FocusTransitionView>
   );
 }
+
+
+
+
+
